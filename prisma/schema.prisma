@@ -1,0 +1,126 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  EMPLOYEE
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  INVITED
+}
+
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACTOR
+  TEMPORARY
+}
+
+enum AssignmentRole {
+  PRIMARY
+  BACKUP
+  SHADOW
+}
+
+enum ShiftStatus {
+  DRAFT
+  PUBLISHED
+  CANCELLED
+}
+
+enum ShiftSlot {
+  SHIFT1
+  SHIFT2
+}
+
+enum RequestStatus {
+  OPEN
+  UNDER_REVIEW
+  APPROVED
+  DECLINED
+  CANCELLED
+}
+
+model User {
+  id                     Int                     @id @default(autoincrement())
+  email                  String                  @unique
+  username               String?                 @unique
+  passwordHash           String
+  name                   String?
+  avatarUrl              String?
+  role                   Role                    @default(EMPLOYEE)
+  status                 UserStatus              @default(ACTIVE)
+  timezone               String                  @default("UTC")
+  phone                  String?
+  employmentType         EmploymentType          @default(FULL_TIME)
+  skills                 String[]                @default([])
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  shiftAssignments       ShiftAssignment[]
+  unavailabilityRequests UnavailabilityRequest[]
+  unavailabilityReviews  UnavailabilityRequest[] @relation("UnavailabilityReviewer")
+
+  @@index([role])
+  @@index([status])
+  @@map("users")
+}
+
+model Shift {
+  id          Int               @id @default(autoincrement())
+  shiftSlot   ShiftSlot         @default(SHIFT1)
+  start       DateTime
+  end         DateTime
+  status      ShiftStatus       @default(DRAFT)
+  notes       String?
+  assignments ShiftAssignment[]
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@index([start])
+  @@index([status])
+  @@map("shifts")
+}
+
+model ShiftAssignment {
+  id        Int            @id @default(autoincrement())
+  shiftId   Int
+  shift     Shift          @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  userId    Int
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      AssignmentRole @default(PRIMARY)
+  notes     String?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@unique([shiftId, userId, role])
+  @@map("shift_assignments")
+}
+
+model UnavailabilityRequest {
+  id           Int           @id @default(autoincrement())
+  userId       Int
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date         DateTime
+  shiftSlot    ShiftSlot
+  reason       String?
+  documentUrl  String?
+  status       RequestStatus @default(OPEN)
+  reviewNote   String?
+  reviewedById Int?
+  reviewedBy   User?         @relation("UnavailabilityReviewer", fields: [reviewedById], references: [id])
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@map("unavailability_requests")
+}
