@@ -112,10 +112,15 @@ export function AppShell({
                 variant="outline"
                 size="sm"
                 onClick={async () => {
-                  await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
-                  queryClient.setQueryData(["session-user"], null);
-                  await queryClient.invalidateQueries({ queryKey: ["session-user"] });
+                  await fetch("/api/auth/logout", {
+                    method: "POST",
+                    credentials: "include",
+                  });
                   router.push("/login");
+                  queryClient.setQueryData(["session-user"], null);
+                  await queryClient.invalidateQueries({
+                    queryKey: ["session-user"],
+                  });
                   router.refresh();
                 }}
               >

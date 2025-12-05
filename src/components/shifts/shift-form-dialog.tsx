@@ -147,11 +147,20 @@ export function ShiftFormDialog({
 
   const title = shift ? "Edit shift" : "Create shift";
 
-  const rankCandidate = (candidate: RecommendationCandidate) => {
-    const busyScore = candidate.hasSameDayShift ? 1 : 0;
-    const unavailabilityScore = candidate.hasUnavailability ? 2 : 0;
-    return busyScore + unavailabilityScore;
-  };
+  const compareCandidates = useCallback((a: RecommendationCandidate, b: RecommendationCandidate) => {
+    if (!!a.hasUnavailability !== !!b.hasUnavailability) {
+      return a.hasUnavailability ? 1 : -1;
+    }
+    if (!!a.hasSameDayShift !== !!b.hasSameDayShift) {
+      return a.hasSameDayShift ? 1 : -1;
+    }
+    const scoreA = a.score ?? 0;
+    const scoreB = b.score ?? 0;
+    if (scoreA !== scoreB) {
+      return scoreB - scoreA;
+    }
+    return a.name.localeCompare(b.name);
+  }, []);
 
   const frequentCandidates: RecommendationCandidate[] = useMemo(
     () =>
@@ -159,13 +168,14 @@ export function ShiftFormDialog({
         .map((item) => ({
           id: item.id,
           name: item.name,
-          detail: `Score: ${item.score}`,
+          score: item.score,
+          detail: item.score !== undefined ? `Score: ${item.score}` : undefined,
           hasSameDayShift: item.hasSameDayShift,
           sameDayCount: item.sameDayCount,
           hasUnavailability: item.hasUnavailability,
         }))
-        .sort((a, b) => rankCandidate(a) - rankCandidate(b)),
-    [recommendations.frequent],
+        .sort(compareCandidates),
+    [recommendations.frequent, compareCandidates],
   );
 
   const availableCandidates: RecommendationCandidate[] = useMemo(
@@ -174,23 +184,27 @@ export function ShiftFormDialog({
         .map((item) => ({
           id: item.id,
           name: item.name,
+          score: item.score,
           hasSameDayShift: item.hasSameDayShift,
           sameDayCount: item.sameDayCount,
           hasUnavailability: item.hasUnavailability,
         }))
-        .sort((a, b) => rankCandidate(a) - rankCandidate(b)),
-    [recommendations.available],
+        .sort(compareCandidates),
+    [recommendations.available, compareCandidates],
   );
 
   const candidateList = useMemo(() => {
-    const seen = new Set<number>();
-    const combined = [...frequentCandidates, ...availableCandidates];
-    return combined.filter((candidate) => {
-      if (seen.has(candidate.id)) return false;
-      seen.add(candidate.id);
-      return true;
-    });
-  }, [frequentCandidates, availableCandidates]);
+    const merged = new Map<number, RecommendationCandidate>();
+    for (const candidate of frequentCandidates) {
+      merged.set(candidate.id, candidate);
+    }
+    for (const candidate of availableCandidates) {
+      if (!merged.has(candidate.id)) {
+        merged.set(candidate.id, candidate);
+      }
+    }
+    return Array.from(merged.values()).sort(compareCandidates);
+  }, [frequentCandidates, availableCandidates, compareCandidates]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -312,4 +326,5 @@ type RecommendationCandidate = {
   hasSameDayShift?: boolean;
   sameDayCount?: number;
   hasUnavailability?: boolean;
+  score?: number;
 };

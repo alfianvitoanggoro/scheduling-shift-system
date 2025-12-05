@@ -1,7 +1,7 @@
-import { addDays, endOfDay, startOfDay } from 'date-fns';
-import { RequestStatus, ShiftStatus } from '@prisma/client';
-import { prisma } from '@/server/db';
-import { formatShiftSlotLabel } from '@/lib/shift-slots';
+import { addDays, endOfDay, startOfDay } from "date-fns";
+import { RequestStatus, ShiftStatus } from "@prisma/client";
+import { prisma } from "@/server/db";
+import { formatShiftSlotLabel } from "@/lib/shift-slots";
 
 export type DashboardMetric = {
   id: string;
@@ -24,7 +24,7 @@ export type DashboardShift = {
   status: ShiftStatus;
 };
 
-export type DashboardAlertSeverity = 'info' | 'warning' | 'critical';
+export type DashboardAlertSeverity = "info" | "warning" | "critical";
 
 export type DashboardAlert = {
   id: string;
@@ -42,19 +42,30 @@ export type DashboardOverview = {
 
 const FALLBACK_OVERVIEW: DashboardOverview = {
   metrics: [
-    { id: 'total-staff', label: 'Active staff', value: 0, helperText: 'Across all roles' },
-    { id: 'shifts-week', label: 'Shifts this week', value: 0, helperText: 'Published and visible to staff' },
-    { id: 'open-requests', label: 'Open availability requests', value: 0, helperText: 'Awaiting admin review' },
-  ],
-  upcomingShifts: [],
-  alerts: [
     {
-      id: 'seed-alert',
-      title: 'Connect to your database',
-      description: 'Configure DATABASE_URL and run migrations to see live scheduling data.',
-      severity: 'info',
+      id: "total-staff",
+      label: "Active staff",
+      value: 0,
+      helperText: "Across all roles",
+    },
+    {
+      id: "shifts-week",
+      label: "Shifts this week",
+      value: 0,
+      helperText: "Published and visible to staff",
+    },
+    {
+      id: "open-requests",
+      label: "Open availability requests",
+      value: 0,
+      helperText: "Awaiting admin review",
     },
   ],
+  upcomingShifts: [],
+  // When there are no runtime alerts available (e.g. initial setup), don't show a
+  // seed/developer message in the UI — return an empty list and let the client render
+  // a friendly, non-technical message instead.
+  alerts: [],
 };
 
 export async function getDashboardOverview(): Promise<DashboardOverview> {
@@ -67,7 +78,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
       uncoveredShifts,
     ] = await Promise.all([
       prisma.user.count({
-        where: { status: 'ACTIVE' },
+        where: { status: "ACTIVE" },
       }),
       prisma.shift.count({
         where: {
@@ -86,7 +97,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
         include: {
           user: { select: { name: true } },
         },
-        orderBy: { date: 'asc' },
+        orderBy: { date: "asc" },
         take: 3,
       }),
       prisma.shift.findMany({
@@ -126,7 +137,7 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
           },
         },
       },
-      orderBy: { start: 'asc' },
+      orderBy: { start: "asc" },
     });
 
     const upcomingShifts: DashboardShift[] = shifts.map((shift) => ({
@@ -145,46 +156,69 @@ export async function getDashboardOverview(): Promise<DashboardOverview> {
     const alerts = [
       ...pendingUnavailability.map((request) => ({
         id: `unavailability-${request.id}`,
-        title: `${request.user?.name ?? 'Team member'} needs coverage`,
-        description: `${formatShiftSlotLabel(request.shiftSlot)} on ${request.date.toLocaleDateString()} is awaiting approval.`,
-        severity: 'warning' as const,
-        actionHref: '/requests',
+        title: `${request.user?.name ?? "Team member"} needs coverage`,
+        description: `${formatShiftSlotLabel(
+          request.shiftSlot
+        )} on ${request.date.toLocaleDateString()} is awaiting approval.`,
+        severity: "warning" as const,
+        actionHref: "/requests",
       })),
       ...uncoveredShifts.map((shift) => ({
         id: `uncovered-${shift.id}`,
         title: `Unassigned ${formatShiftSlotLabel(shift.shiftSlot)}`,
         description: `Happening on ${shift.start.toLocaleDateString()} with no assignees.`,
-        severity: 'critical' as const,
-        actionHref: '/shifts',
+        severity: "critical" as const,
+        actionHref: "/shifts",
       })),
     ];
 
     return {
       metrics: [
         {
-          id: 'total-staff',
-          label: 'Active staff',
+          id: "total-staff",
+          label: "Active staff",
           value: activeStaff,
-          helperText: 'Across all roles',
+          helperText: "Across all roles",
         },
         {
-          id: 'shifts-week',
-          label: 'Shifts this week',
+          id: "shifts-week",
+          label: "Shifts this week",
           value: publishedShifts,
-          helperText: 'Published and visible to staff',
+          helperText: "Published and visible to staff",
         },
         {
-          id: 'open-requests',
-          label: 'Open availability requests',
+          id: "open-requests",
+          label: "Open availability requests",
           value: openUnavailabilityCount,
-          helperText: 'Awaiting admin review',
+          helperText: "Awaiting admin review",
         },
       ],
       upcomingShifts,
       alerts: alerts.length > 0 ? alerts : FALLBACK_OVERVIEW.alerts,
     };
   } catch (error) {
-    console.warn('Falling back to dashboard defaults', error);
-    return FALLBACK_OVERVIEW;
+    console.warn("Falling back to dashboard defaults", error);
+    // Surface a friendly alert when the database/query fails. In development show
+    // the full error so it's easier to debug; in production show a generic
+    // message so we don't leak internals to end users.
+    const isDev = process.env.NODE_ENV !== "production";
+    const errorTitle = isDev
+      ? `Error loading dashboard: ${String((error as Error)?.message ?? error)}`
+      : "Unable to load live alerts";
+    const errorDescription = isDev
+      ? String(error)
+      : "The system could not load live scheduling data. Please contact an administrator.";
+
+    const errorAlert: DashboardAlert = {
+      id: "dashboard-fetch-error",
+      title: errorTitle,
+      description: errorDescription,
+      severity: "info",
+    };
+
+    return {
+      ...FALLBACK_OVERVIEW,
+      alerts: [errorAlert],
+    };
   }
 }
