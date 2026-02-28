@@ -83,7 +83,7 @@ export async function createEmployee(rawInput: EmployeeMutationInput) {
       role: data.role,
       status: data.status,
       timezone: data.timezone || 'UTC',
-      passwordHash: await hashPassword('12345678'),
+      passwordHash: await hashPassword('password'),
       employmentType: data.employmentType ?? EmploymentType.FULL_TIME,
       skills: data.skills ?? [],
     },
