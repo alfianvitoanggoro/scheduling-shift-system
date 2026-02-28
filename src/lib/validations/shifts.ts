@@ -1,12 +1,9 @@
-import { z } from 'zod';
-import { ShiftSlot, ShiftStatus } from '@prisma/client';
+import { z } from "zod";
+import { ShiftSlot, ShiftStatus } from "@prisma/client";
 
 export const shiftFiltersSchema = z.object({
   shiftSlot: z.nativeEnum(ShiftSlot).optional(),
-  status: z
-    .array(z.nativeEnum(ShiftStatus))
-    .optional()
-    .default([]),
+  status: z.array(z.nativeEnum(ShiftStatus)).optional().default([]),
   from: z.string().optional(),
   to: z.string().optional(),
   assigneeId: z.number().int().optional(),
@@ -20,8 +17,10 @@ export const shiftMutationSchema = z.object({
   date: z
     .string()
     .trim()
-    .refine((value) => !Number.isNaN(Date.parse(value)), { message: 'Select a valid date' }),
-  shiftSlot: z.nativeEnum(ShiftSlot).default(ShiftSlot.SHIFT1),
+    .refine((value) => !Number.isNaN(Date.parse(value)), {
+      message: "Select a valid date",
+    }),
+  shiftSlot: z.nativeEnum(ShiftSlot),
   status: z.nativeEnum(ShiftStatus),
   notes: z.string().optional().nullable(),
   assigneeId: z.number().int().optional().nullable(),

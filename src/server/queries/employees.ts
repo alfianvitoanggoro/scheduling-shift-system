@@ -1,13 +1,22 @@
-import { prisma } from '@/server/db';
-import { EmploymentType, Role, UserStatus, type Prisma } from '@prisma/client';
-import { hashPassword } from '@/lib/auth';
+import { prisma } from "@/server/db";
+import {
+  EmploymentType,
+  Role,
+  UserStatus,
+  type Prisma,
+  type User,
+} from "@prisma/client";
+import { hashPassword } from "@/lib/auth";
 import {
   employeeFiltersSchema,
   employeeMutationSchema,
   type EmployeeFiltersInput,
   type EmployeeMutationInput,
-} from '@/lib/validations/employees';
-import type { EmployeeDirectory, EmployeeDirectoryRow } from '@/types/employees';
+} from "@/lib/validations/employees";
+import type {
+  EmployeeDirectory,
+  EmployeeDirectoryRow,
+} from "@/types/employees";
 
 const FALLBACK_DIRECTORY: EmployeeDirectory = {
   total: 0,
@@ -15,7 +24,7 @@ const FALLBACK_DIRECTORY: EmployeeDirectory = {
   rows: [],
 };
 
-const mapEmployeeRecord = (employee: Prisma.User): EmployeeDirectoryRow => ({
+const mapEmployeeRecord = (employee: User): EmployeeDirectoryRow => ({
   id: employee.id,
   name: employee.name,
   username: employee.username,
@@ -27,7 +36,9 @@ const mapEmployeeRecord = (employee: Prisma.User): EmployeeDirectoryRow => ({
   skills: employee.skills ?? [],
 });
 
-export async function listEmployees(rawFilters: Partial<EmployeeFiltersInput> = {}): Promise<EmployeeDirectoryRow[]> {
+export async function listEmployees(
+  rawFilters: Partial<EmployeeFiltersInput> = {},
+): Promise<EmployeeDirectoryRow[]> {
   const filters = employeeFiltersSchema.parse(rawFilters);
 
   const where: Prisma.UserWhereInput = {
@@ -35,31 +46,37 @@ export async function listEmployees(rawFilters: Partial<EmployeeFiltersInput> = 
     ...(filters.search
       ? {
           OR: [
-            { name: { contains: filters.search, mode: 'insensitive' } },
-            { email: { contains: filters.search, mode: 'insensitive' } },
+            { name: { contains: filters.search, mode: "insensitive" } },
+            { email: { contains: filters.search, mode: "insensitive" } },
           ],
         }
       : {}),
     ...(filters.role ? { role: filters.role } : {}),
     ...(filters.status ? { status: filters.status } : {}),
-    ...(filters.employmentType ? { employmentType: filters.employmentType } : {}),
+    ...(filters.employmentType
+      ? { employmentType: filters.employmentType }
+      : {}),
   };
 
   const employees = await prisma.user.findMany({
     where,
-    orderBy: [{ name: 'asc' }],
+    orderBy: [{ name: "asc" }],
   });
 
   const filtered = filters.skill
     ? employees.filter((employee) =>
-        employee.skills?.some((skill) => skill.toLowerCase().includes(filters.skill!.toLowerCase())),
+        employee.skills?.some((skill) =>
+          skill.toLowerCase().includes(filters.skill!.toLowerCase()),
+        ),
       )
     : employees;
 
   return filtered.map(mapEmployeeRecord);
 }
 
-export async function getEmployeeDirectory(filters: Partial<EmployeeFiltersInput> = {}): Promise<EmployeeDirectory> {
+export async function getEmployeeDirectory(
+  filters: Partial<EmployeeFiltersInput> = {},
+): Promise<EmployeeDirectory> {
   try {
     const rows = await listEmployees(filters);
     return {
@@ -68,7 +85,7 @@ export async function getEmployeeDirectory(filters: Partial<EmployeeFiltersInput
       rows,
     };
   } catch (error) {
-    console.warn('Unable to load employee directory', error);
+    console.warn("Unable to load employee directory", error);
     return FALLBACK_DIRECTORY;
   }
 }
@@ -82,8 +99,8 @@ export async function createEmployee(rawInput: EmployeeMutationInput) {
       email: data.email,
       role: data.role,
       status: data.status,
-      timezone: data.timezone || 'UTC',
-      passwordHash: await hashPassword('password'),
+      timezone: data.timezone || "UTC",
+      passwordHash: await hashPassword("password"),
       employmentType: data.employmentType ?? EmploymentType.FULL_TIME,
       skills: data.skills ?? [],
     },
@@ -92,10 +109,12 @@ export async function createEmployee(rawInput: EmployeeMutationInput) {
   return mapEmployeeRecord(employee);
 }
 
-export async function updateEmployee(rawInput: EmployeeMutationInput & { id: number }) {
+export async function updateEmployee(
+  rawInput: EmployeeMutationInput & { id: number },
+) {
   const data = employeeMutationSchema.parse(rawInput);
   if (!rawInput.id) {
-    throw new Error('Employee id is required');
+    throw new Error("Employee id is required");
   }
 
   const employee = await prisma.user.update({
@@ -106,7 +125,7 @@ export async function updateEmployee(rawInput: EmployeeMutationInput & { id: num
       email: data.email,
       role: data.role,
       status: data.status,
-      timezone: data.timezone || 'UTC',
+      timezone: data.timezone || "UTC",
       employmentType: data.employmentType ?? EmploymentType.FULL_TIME,
       ...(data.skills ? { skills: data.skills } : {}),
     },
