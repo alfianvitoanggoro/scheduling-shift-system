@@ -1,5 +1,5 @@
-import { prisma } from '@/server/db';
-import { RequestStatus, ShiftSlot } from '@prisma/client';
+import { prisma } from "@/server/db";
+import { RequestStatus, ShiftSlot } from "@prisma/client";
 
 export type UnavailabilityRequestDTO = {
   id: number;
@@ -32,7 +32,7 @@ export async function listUnavailability(
       ...(filters.status ? { status: filters.status } : {}),
       ...(filters.search
         ? {
-            reason: { contains: filters.search, mode: 'insensitive' },
+            reason: { contains: filters.search, mode: "insensitive" },
           }
         : {}),
       ...(filters.from || filters.to
@@ -44,7 +44,7 @@ export async function listUnavailability(
           }
         : {}),
     },
-    orderBy: [{ createdAt: 'desc' }],
+    orderBy: [{ createdAt: "desc" }],
     include: {
       user: { select: { name: true, email: true } },
     },
@@ -53,7 +53,7 @@ export async function listUnavailability(
   return requests.map((req) => ({
     id: req.id,
     userId: req.userId,
-    requester: req.user?.name ?? req.user?.email ?? 'Unknown',
+    requester: req.user?.name ?? req.user?.email ?? "Unknown",
     date: req.date,
     shiftSlot: req.shiftSlot,
     reason: req.reason,
@@ -79,10 +79,15 @@ export async function createUnavailability(input: {
       documentUrl: input.documentUrl,
       status: RequestStatus.OPEN,
     },
+    include: {
+      user: { select: { name: true, email: true } },
+    },
   });
 
   return {
     id: created.id,
+    userId: created.userId,
+    requester: created.user?.name ?? created.user?.email ?? "Unknown",
     date: created.date,
     shiftSlot: created.shiftSlot,
     reason: created.reason,
@@ -92,7 +97,12 @@ export async function createUnavailability(input: {
   };
 }
 
-export async function updateUnavailabilityStatus(id: number, status: RequestStatus, reviewedById?: number, reviewNote?: string) {
+export async function updateUnavailabilityStatus(
+  id: number,
+  status: RequestStatus,
+  reviewedById?: number,
+  reviewNote?: string,
+) {
   return prisma.unavailabilityRequest.update({
     where: { id },
     data: { status, reviewedById, reviewNote },
@@ -102,7 +112,7 @@ export async function updateUnavailabilityStatus(id: number, status: RequestStat
 export async function listPendingUnavailability() {
   const requests = await prisma.unavailabilityRequest.findMany({
     where: { status: RequestStatus.OPEN },
-    orderBy: { createdAt: 'asc' },
+    orderBy: { createdAt: "asc" },
     include: {
       user: { select: { name: true, email: true } },
     },

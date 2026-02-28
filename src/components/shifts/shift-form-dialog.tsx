@@ -62,7 +62,7 @@ export function ShiftFormDialog({
     watch,
     formState: { errors },
   } = useForm<ShiftMutationInput>({
-    resolver: zodResolver(shiftMutationSchema),
+    resolver: zodResolver(shiftMutationSchema) as any,
     defaultValues: {
       status: ShiftStatus.DRAFT,
       date: formatDateInputValue(new Date()),
@@ -97,14 +97,18 @@ export function ShiftFormDialog({
   }, [shift, reset, resetToDefault]);
 
   const dateValue = watch("date");
-  const shiftSlotValue = (watch("shiftSlot") as ShiftSlot | undefined) ?? ShiftSlot.SHIFT1;
+  const shiftSlotValue =
+    (watch("shiftSlot") as ShiftSlot | undefined) ?? ShiftSlot.SHIFT1;
 
   const emptyRecommendations: Recommendations = useMemo(
     () => ({ frequent: [], available: [] }),
     [],
   );
 
-  const { data: recommendations = emptyRecommendations, isFetching: isRecommending } = useQuery({
+  const {
+    data: recommendations = emptyRecommendations,
+    isFetching: isRecommending,
+  } = useQuery({
     queryKey: ["shift-recommendations", dateValue, shiftSlotValue],
     enabled: Boolean(dateValue && shiftSlotValue),
     queryFn: async (): Promise<Recommendations> => {
@@ -124,7 +128,7 @@ export function ShiftFormDialog({
   });
 
   const submitHandler = handleSubmit(async (data) => {
-    await onSubmit({ ...data, assigneeId });
+    await onSubmit({ ...(data as ShiftMutationInput), assigneeId });
     resetToDefault();
     onOpenChange(false);
   });
@@ -147,20 +151,23 @@ export function ShiftFormDialog({
 
   const title = shift ? "Edit shift" : "Create shift";
 
-  const compareCandidates = useCallback((a: RecommendationCandidate, b: RecommendationCandidate) => {
-    if (!!a.hasUnavailability !== !!b.hasUnavailability) {
-      return a.hasUnavailability ? 1 : -1;
-    }
-    if (!!a.hasSameDayShift !== !!b.hasSameDayShift) {
-      return a.hasSameDayShift ? 1 : -1;
-    }
-    const scoreA = a.score ?? 0;
-    const scoreB = b.score ?? 0;
-    if (scoreA !== scoreB) {
-      return scoreB - scoreA;
-    }
-    return a.name.localeCompare(b.name);
-  }, []);
+  const compareCandidates = useCallback(
+    (a: RecommendationCandidate, b: RecommendationCandidate) => {
+      if (!!a.hasUnavailability !== !!b.hasUnavailability) {
+        return a.hasUnavailability ? 1 : -1;
+      }
+      if (!!a.hasSameDayShift !== !!b.hasSameDayShift) {
+        return a.hasSameDayShift ? 1 : -1;
+      }
+      const scoreA = a.score ?? 0;
+      const scoreB = b.score ?? 0;
+      if (scoreA !== scoreB) {
+        return scoreB - scoreA;
+      }
+      return a.name.localeCompare(b.name);
+    },
+    [],
+  );
 
   const frequentCandidates: RecommendationCandidate[] = useMemo(
     () =>
@@ -217,13 +224,19 @@ export function ShiftFormDialog({
             <div className="space-y-1.5">
               <Label htmlFor="shift-date">Date</Label>
               <Input id="shift-date" type="date" {...register("date")} />
-              {errors.date ? <p className="text-xs text-red-500">{errors.date.message}</p> : null}
+              {errors.date ? (
+                <p className="text-xs text-red-500">{errors.date.message}</p>
+              ) : null}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="shift-slot">Shift slot</Label>
               <Select id="shift-slot" {...register("shiftSlot")}>
-                <option value={ShiftSlot.SHIFT1}>{formatShiftSlotLabel(ShiftSlot.SHIFT1)}</option>
-                <option value={ShiftSlot.SHIFT2}>{formatShiftSlotLabel(ShiftSlot.SHIFT2)}</option>
+                <option value={ShiftSlot.SHIFT1}>
+                  {formatShiftSlotLabel(ShiftSlot.SHIFT1)}
+                </option>
+                <option value={ShiftSlot.SHIFT2}>
+                  {formatShiftSlotLabel(ShiftSlot.SHIFT2)}
+                </option>
               </Select>
             </div>
           </div>
@@ -250,7 +263,9 @@ export function ShiftFormDialog({
 
           <div className="space-y-3">
             {candidateList.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No employees available for this slot.</p>
+              <p className="text-xs text-muted-foreground">
+                No employees available for this slot.
+              </p>
             ) : (
               <div className="space-y-2">
                 {candidateList.map((candidate) => (
@@ -258,7 +273,9 @@ export function ShiftFormDialog({
                     key={candidate.id}
                     type="button"
                     className={`flex w-full items-center justify-between rounded-md border px-3 py-2 text-left text-sm transition ${
-                      assigneeId === candidate.id ? "border-primary bg-primary/5" : "border-border bg-muted/40"
+                      assigneeId === candidate.id
+                        ? "border-primary bg-primary/5"
+                        : "border-border bg-muted/40"
                     }`}
                     onClick={() => handleAssigneeSelection(candidate)}
                   >
@@ -266,15 +283,20 @@ export function ShiftFormDialog({
                       <span>{candidate.name}</span>
                       {candidate.hasSameDayShift ? (
                         <span className="text-[11px] text-amber-600">
-                          {candidate.sameDayCount ?? 1} shift(s) already scheduled today
+                          {candidate.sameDayCount ?? 1} shift(s) already
+                          scheduled today
                         </span>
                       ) : null}
                       {candidate.hasUnavailability ? (
-                        <span className="text-[11px] text-red-600">Pending unavailability on this slot</span>
+                        <span className="text-[11px] text-red-600">
+                          Pending unavailability on this slot
+                        </span>
                       ) : null}
                     </div>
                     {candidate.detail ? (
-                      <span className="text-xs text-muted-foreground">{candidate.detail}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {candidate.detail}
+                      </span>
                     ) : null}
                   </button>
                 ))}
@@ -282,7 +304,12 @@ export function ShiftFormDialog({
             )}
 
             <div className="flex gap-2">
-              <Button type="button" variant="outline" size="sm" onClick={() => setAssigneeId(undefined)}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setAssigneeId(undefined)}
+              >
                 Clear
               </Button>
               <Button
