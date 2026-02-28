@@ -1,0 +1,23 @@
+# ──────────────────────────────────────────────────────────────
+# LOCAL DEV ONLY — Not needed when using Supabase.
+# If you want to run a local PostgreSQL instead of Supabase,
+# uncomment DATABASE_URL / DIRECT_URL in .env pointing to
+# localhost:5432 and run `docker compose up -d`.
+# ──────────────────────────────────────────────────────────────
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: scheduling_shift_system
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+
+volumes:
+  db-data:
