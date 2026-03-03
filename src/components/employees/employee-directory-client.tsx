@@ -1,17 +1,22 @@
 "use client";
 
-import { useMemo, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Filter } from 'lucide-react';
-import { toast } from 'sonner';
-import type { EmployeeDirectoryRow, EmployeeFilterState } from '@/types/employees';
-import { EmployeeTable } from '@/components/employees/employee-table';
-import { Button } from '@/components/ui/button';
-import { EmployeeFormDialog } from '@/components/employees/employee-form-dialog';
-import { ConfirmDialog } from '@/components/common/confirm-dialog';
-import type { EmployeeMutationInput } from '@/lib/validations/employees';
-import { EmployeeFilterDialog } from '@/components/employees/employee-filter-dialog';
-import { EmployeeDetailDialog } from '@/components/employees/employee-detail-dialog';
+import { useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { FileDown, Filter } from "lucide-react";
+import { toast } from "sonner";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import type {
+  EmployeeDirectoryRow,
+  EmployeeFilterState,
+} from "@/types/employees";
+import { EmployeeTable } from "@/components/employees/employee-table";
+import { Button } from "@/components/ui/button";
+import { EmployeeFormDialog } from "@/components/employees/employee-form-dialog";
+import { ConfirmDialog } from "@/components/common/confirm-dialog";
+import type { EmployeeMutationInput } from "@/lib/validations/employees";
+import { EmployeeFilterDialog } from "@/components/employees/employee-filter-dialog";
+import { EmployeeDetailDialog } from "@/components/employees/employee-detail-dialog";
 
 type EmployeeDirectoryClientProps = {
   initialData: EmployeeDirectoryRow[];
@@ -29,7 +34,9 @@ export function EmployeeDirectoryClient({
   const [deleteTarget, setDeleteTarget] = useState<
     EmployeeDirectoryRow | undefined
   >(undefined);
-  const [detailTarget, setDetailTarget] = useState<EmployeeDirectoryRow | undefined>(undefined);
+  const [detailTarget, setDetailTarget] = useState<
+    EmployeeDirectoryRow | undefined
+  >(undefined);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
 
   const normalizedFilters = useMemo(
@@ -43,15 +50,21 @@ export function EmployeeDirectoryClient({
     [filters],
   );
 
-  const queryKey = useMemo(() => ['employees', normalizedFilters], [normalizedFilters]);
+  const queryKey = useMemo(
+    () => ["employees", normalizedFilters],
+    [normalizedFilters],
+  );
 
-  const { data: employees = initialData, isFetching } = useQuery<EmployeeDirectoryRow[]>({
+  const { data: employees = initialData, isFetching } = useQuery<
+    EmployeeDirectoryRow[]
+  >({
     queryKey,
     queryFn: () => fetchEmployees(normalizedFilters),
     // Use seeded data only for the default unfiltered view; let filtered
     // queries load from the server to avoid showing stale rows.
-    initialData: Object.keys(normalizedFilters).length === 0 ? initialData : undefined,
-    refetchOnMount: 'always',
+    initialData:
+      Object.keys(normalizedFilters).length === 0 ? initialData : undefined,
+    refetchOnMount: "always",
   });
 
   const createMutation = useMutation({
@@ -79,7 +92,7 @@ export function EmployeeDirectoryClient({
       const response = await fetch("/api/employees", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        credentials: 'include',
+        credentials: "include",
         body: JSON.stringify({ id }),
       });
       if (!response.ok) {
@@ -121,10 +134,19 @@ export function EmployeeDirectoryClient({
     <div className="space-y-6">
       <div className="flex justify-between">
         <Button onClick={handleCreate}>Add employee</Button>
-        <Button variant="outline" onClick={() => setIsFilterOpen(true)}>
-          <Filter className="mr-2 size-4" />
-          Filters
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => exportEmployeesToPdf(employees)}
+          >
+            <FileDown className="mr-2 size-4" />
+            Export PDF
+          </Button>
+          <Button variant="outline" onClick={() => setIsFilterOpen(true)}>
+            <Filter className="mr-2 size-4" />
+            Filters
+          </Button>
+        </div>
       </div>
       <EmployeeTable
         rows={employees}
@@ -181,18 +203,96 @@ export function EmployeeDirectoryClient({
   );
 }
 
+function exportEmployeesToPdf(employees: EmployeeDirectoryRow[]) {
+  const doc = new jsPDF();
+  const pageWidth = doc.internal.pageSize.getWidth();
+
+  // --- Kop Surat (Letterhead) - Top Left ---
+  doc.setFontSize(14);
+  doc.setFont("helvetica", "bold");
+  doc.text("PT IPWAN GLOBAL TELCOMM", 14, 20);
+
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "normal");
+  doc.text("Jakarta Selatan", 14, 27);
+  doc.text("admin@ipwan.com", 14, 33);
+
+  // Separator line
+  doc.setLineWidth(0.5);
+  doc.line(14, 38, pageWidth - 14, 38);
+
+  // Document title
+  doc.setFontSize(12);
+  doc.setFont("helvetica", "bold");
+  doc.text("Employee List", pageWidth / 2, 47, { align: "center" });
+
+  // --- Table ---
+  const tableData = employees.map((emp, index) => [
+    index + 1,
+    emp.name ?? "-",
+    emp.username ?? "-",
+    emp.email,
+    emp.role,
+    emp.status,
+    emp.employmentType ?? "-",
+    emp.skills.join(", ") || "-",
+  ]);
+
+  autoTable(doc, {
+    startY: 53,
+    head: [
+      [
+        "No",
+        "Name",
+        "Username",
+        "Email",
+        "Role",
+        "Status",
+        "Employment",
+        "Skills",
+      ],
+    ],
+    body: tableData,
+    styles: { fontSize: 8, cellPadding: 3 },
+    headStyles: { fillColor: [30, 64, 175], textColor: 255, fontStyle: "bold" },
+    alternateRowStyles: { fillColor: [239, 246, 255] },
+  });
+
+  // --- Signature Block - Bottom Right ---
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const finalY: number = (doc as any).lastAutoTable?.finalY ?? 200;
+  const sigY = finalY + 20;
+  const sigX = pageWidth - 14;
+
+  const today = new Date();
+  const formattedDate = today.toLocaleDateString("id-ID", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "normal");
+  doc.text(`Jakarta, ${formattedDate}`, sigX, sigY, { align: "right" });
+  doc.text("HRD Manager", sigX, sigY + 7, { align: "right" });
+  doc.text("Akbar", sigX, sigY + 35, { align: "right" });
+
+  doc.save("employees.pdf");
+}
+
 async function fetchEmployees(
-  filters: EmployeeFilterState
+  filters: EmployeeFilterState,
 ): Promise<EmployeeDirectoryRow[]> {
   const params = new URLSearchParams();
-  if (filters.search) params.set('search', filters.search);
-  if (filters.role) params.set('role', filters.role);
-  if (filters.status) params.set('status', filters.status);
-  if (filters.employmentType) params.set('employmentType', filters.employmentType);
-  if (filters.skill) params.set('skill', filters.skill);
+  if (filters.search) params.set("search", filters.search);
+  if (filters.role) params.set("role", filters.role);
+  if (filters.status) params.set("status", filters.status);
+  if (filters.employmentType)
+    params.set("employmentType", filters.employmentType);
+  if (filters.skill) params.set("skill", filters.skill);
 
   const response = await fetch(`/api/employees?${params.toString()}`, {
-    credentials: 'include',
+    credentials: "include",
   });
   if (!response.ok) {
     throw new Error("Failed to fetch employees");
@@ -203,12 +303,12 @@ async function fetchEmployees(
 
 async function mutateEmployee(
   method: "POST" | "PATCH",
-  payload: EmployeeMutationInput
+  payload: EmployeeMutationInput,
 ) {
   const response = await fetch("/api/employees", {
     method,
     headers: { "Content-Type": "application/json" },
-    credentials: 'include',
+    credentials: "include",
     body: JSON.stringify(payload),
   });
 
